@@ -41,6 +41,7 @@ from affine import Affine
 
 ### External functions 
 import fct.fct_link_storm_claim as fct_link_storm_claim
+from fct.paths import *
 
 # This funcion must be called as a loop over the years of interest (1998-2023) with the beginning year of the season as argument
 # For example, is the year 2010 is written as input, the method will association the claims for the season 2010-2011
@@ -79,20 +80,20 @@ if __name__ == "__main__":
 
     ### OPEN STORM TRAJECTORIES
     track_source = 'priestley_ALL'
-    df_info_storm_priestley = pd.read_csv(PATH_TRACKS+"tracks_ALL_24h_"+period+"_info.csv", encoding='utf-8')
-    df_info_storm_priestley['storm_landing_date'] = pd.to_datetime(df_info_storm_priestley['storm_landing_date'])
-    df_info_storm_priestley = df_info_storm_priestley.sort_values('storm_landing_date')
-    df_storm_priestley = pd.read_csv(PATH_TRACKS+"tracks_ALL_24h_"+period+".csv", encoding='utf-8')
+    df_info_storm = pd.read_csv(PATH_TRACKS+"tracks_ALL_24h_"+period+"_info.csv", encoding='utf-8')
+    df_info_storm['storm_landing_date'] = pd.to_datetime(df_info_storm['storm_landing_date'])
+    df_info_storm = df_info_storm.sort_values('storm_landing_date')
+    df_storm = pd.read_csv(PATH_TRACKS+"tracks_ALL_24h_"+period+".csv", encoding='utf-8')
 
     # Trajectories between the input period 
     
-    df_info_storm_priestley = df_info_storm_priestley.loc[df_info_storm_priestley.storm_landing_date < datetime.datetime(year=input_year+1, 
+    df_info_storm = df_info_storm.loc[df_info_storm.storm_landing_date < datetime.datetime(year=input_year+1, 
                                                                                                                          month=4, day=1, hour=0
                                                                                                                         )]
-    df_info_storm_priestley = df_info_storm_priestley.loc[df_info_storm_priestley.storm_landing_date >= datetime.datetime(year=input_year, 
+    df_info_storm = df_info_storm.loc[df_info_storm.storm_landing_date >= datetime.datetime(year=input_year, 
                                                                                                                      month=10, day=1, hour=0
                                                                                                                     )]
-    df_storm_priestley = df_storm_priestley.loc[df_storm_priestley.storm_id.isin(df_info_storm_priestley.storm_id.unique())]
+    df_storm = df_storm.loc[df_storm.storm_id.isin(df_info_storm.storm_id.unique())]
 
     ###LINK STORM AND DATA 
     delta_t_after = datetime.timedelta(hours=d_after * 24)
@@ -106,7 +107,7 @@ if __name__ == "__main__":
 #     sinclim_raw = sinclim_raw.loc[sinclim_raw.dat_sin > datetime.datetime(year=1998, month=1, day=1, hour=0)-delta_t_before]
     
     #For the largest windows make the association from scratch
-    sinclim_storm = fct_link_storm_claim.assoc_storm_candidates(sinclim_raw, d_before, d_after, df_storm_priestley, df_info_storm_priestley)
+    sinclim_storm = fct_link_storm_claim.assoc_storm_candidates(sinclim_raw, d_before, d_after, df_storm, df_info_storm)
     sinclim_storm.to_csv(PATH_GENERALI+"final/"+save_name+"_d-"+str(d_before)+"_d+"+str(d_after)+"_"+track_source+"_"+str(input_year)+"-"+str(input_year+1)+".csv" , encoding='utf-8', index=False)
     
     ## ADD WGUST
@@ -142,7 +143,7 @@ if __name__ == "__main__":
     ### Apply gathering of number of claims
     nb_min_claims_start = 10
 
-    sinclim_copy_cp = fct_link_storm_claim.gather_claims_storm_iteration(sinclim_copy_cp, df_info_storm_priestley, nb_min_claims, 
+    sinclim_copy_cp = fct_link_storm_claim.gather_claims_storm_iteration(sinclim_copy_cp, df_info_storm, nb_min_claims, 
                                                                        nb_min_claims_start, 10)
 
     #Correct the final wgust 

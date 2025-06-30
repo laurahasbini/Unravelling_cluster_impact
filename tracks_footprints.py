@@ -46,7 +46,7 @@ period = "1979-2024WIN"
 df_info_storm                       = pd.read_csv(PATH_TRACKS+"tracks_ALL_24h_"+period+"_info.csv", encoding='utf-8')
 df_info_storm['storm_landing_date'] = pd.to_datetime(df_info_storm['storm_landing_date'])
 df_info_storm                       = df_info_storm.sort_values('storm_landing_date')
-df_storm                            = pd.read_csv(path_tracks_priestley+"tracks_ALL_24h_"+period+".csv", encoding='utf-8')
+df_storm                            = pd.read_csv(PATH_TRACKS+"tracks_ALL_24h_"+period+".csv", encoding='utf-8')
 
 ## Subselect storms 
 df_info_storm                       = df_info_storm.loc[df_info_storm.storm_landing_date < datetime.datetime(year=1997, month=1, day=1, hour=0)]

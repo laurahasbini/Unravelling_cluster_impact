@@ -25,7 +25,7 @@ import shapely.geometry as sgeom
 from shapely.geometry import Point, box
 import matplotlib.pyplot as plt
 
-from paths import *
+from fct.paths import *
 
 # Shit the longitude to have -180/180
 def shift_longitude(ds):
@@ -739,7 +739,11 @@ def extract_subset(path_data, data_name, tracks, aggregated='ym'):
         else : 
             for month in np.unique(tracks.month) :
                 files_paths.append(path_data+data_name+'_'+str(y_min)+str(month).zfill(2)+'.nc')
-    data = xr.open_mfdataset(files_paths, combine='by_coords')#, combine='nested', concat_dim='time')
+    data = xr.open_mfdataset(files_paths, combine='by_coords', 
+                             parallel=True, chunks={"lat": 100, "lon": 200}, 
+                             coords='minimal', compat='override')#, combine='nested', concat_dim='time')
+    if "valid_time" in data:
+        data = data.rename({"valid_time": "time"})
     return data 
 
 #### FUNCTIONS TO COMPUTE FOOTPRINT
@@ -808,7 +812,7 @@ def footprint_nc(tracks_df, track_df_info, path_data, data_name, variable_name, 
         df_track_loop = tracks_df[tracks_df.storm_id == stormi].reset_index(drop=True)
         df_info_track_loop = track_df_info[track_df_info.storm_id == stormi]
         ## Extract only the needed years
-        data_nc = extract_subset(path_data, data_name, tracks_df, aggregated)
+        data_nc = extract_subset(path_data, data_name, df_track_loop, aggregated)
         data_nc = data_nc[variable_name]
         
         ## Mask over a given domain 
@@ -838,7 +842,9 @@ def footprint_nc(tracks_df, track_df_info, path_data, data_name, variable_name, 
         data_nc_masked_track_gather = data_nc_masked_track_gather.expand_dims(time=df_info_track_loop.storm_landing_date)
         
         ## Convert to Dataset and Add attributes        
-        dataset = data_nc_masked_track_gather.to_dataset(name='max_wind_gust')
+        new_name = f"{gather}_{variable_name}"
+#         dataset = data_nc_masked_track_gather.to_dataset(name='max_wind_gust')
+        dataset = data_nc_masked_track_gather.to_dataset(name=new_name)
         #dataset.attrs['ssi']                       = str(df_info_track_loop['SSI_FRA'].iloc[0])
         dataset.attrs['ssi_spatial_extend']        = 'FRA'
         dataset.attrs['mean_gust_speed25']         = float(data_nc_masked_track_gather.mean())

@@ -41,25 +41,25 @@ for q in quantile :
     ### OPEN STORM TRAJECTORIES --> ONLY FOR 2018 at a start 
     track_source = 'priestley_ALL'
     period = "1979-2024WIN"
-    df_info_storm_priestley = pd.read_csv(PATH_TRACKS+"tracks_FR_ALL_24h_"+period+"_info.csv", encoding='utf-8')
-    df_info_storm_priestley['storm_landing_date'] = pd.to_datetime(df_info_storm_priestley['storm_landing_date'])
-    df_info_storm_priestley = df_info_storm_priestley.loc[df_info_storm_priestley.storm_landing_date >= datetime.datetime(year=1997, month=12, day=1)]
+    df_info_storm = pd.read_csv(PATH_TRACKS+"tracks_FR_ALL_24h_"+period+"_info.csv", encoding='utf-8')
+    df_info_storm['storm_landing_date'] = pd.to_datetime(df_info_storm['storm_landing_date'])
+    df_info_storm = df_info_storm.loc[df_info_storm.storm_landing_date >= datetime.datetime(year=1997, month=12, day=1)]
 
     ### COMPUTE SSI
     r=1300
     if exposure_bool :
-        df_info_storm_priestley_SSI = storm_eu.SSI_from_footprint(df_info_storm_priestley, 'SSI_FRA_wgust_q'+q, 
+        df_info_storm_SSI = storm_eu.SSI_from_footprint(df_info_storm, 'SSI_FRA_wgust_q'+q, 
                                                                   PATH_FOOTPRINTS, 'max_wind_gust', r, 
                                                                   wind_th.fg10, 
                                                                   True, FRA_geo_shp, 
                                                                   True, PATH_TRACKS, "tracks_FR_ALL_24h_"+period+"_info_SSI-"+exposure_var+"-wgust-q"+q+"_r"+str(r), 
                                                                   True, exposure, exposure_var)
-        df_info_storm_priestley_SSI.to_csv(PATH_TRACKS+"tracks_FR_ALL_24h_"+period+"_info_SSI-"+exposure_var+"-wgust-q"+q+"_r"+str(r)+".csv" , encoding='utf-8', index=False)
+        df_info_storm_SSI.to_csv(PATH_TRACKS+"tracks_FR_ALL_24h_"+period+"_info_SSI-"+exposure_var+"-wgust-q"+q+"_r"+str(r)+".csv" , encoding='utf-8', index=False)
     else : 
-        df_info_storm_priestley_SSI = storm_eu.SSI_from_footprint(df_info_storm_priestley, 'SSI_FRA_wgust_q'+q, 
+        df_info_storm_SSI = storm_eu.SSI_from_footprint(df_info_storm, 'SSI_FRA_wgust_q'+q, 
                                                                   PATH_FOOTPRINTS, 'max_wind_gust', r, 
                                                                   wind_th.fg10, 
                                                                   True, FRA_geo_shp, 
                                                                   True, PATH_TRACKS, "tracks_FR_ALL_24h_"+period+"_info_SSI-wgust-q"+q+"_r"+str(r), 
                                                                   False)
-        df_info_storm_priestley_SSI.to_csv(PATH_TRACKS+"tracks_FR_ALL_24h_"+period+"_info_SSI-wgust-q"+q+"_r"+str(r)+".csv" , encoding='utf-8', index=False)
+        df_info_storm_SSI.to_csv(PATH_TRACKS+"tracks_FR_ALL_24h_"+period+"_info_SSI-wgust-q"+q+"_r"+str(r)+".csv" , encoding='utf-8', index=False)
