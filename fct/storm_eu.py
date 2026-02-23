@@ -100,8 +100,9 @@ def change_identifier(all_tracks, df_storm_info) :
         cycl_info = df_storm_info[df_storm_info.track_id==i].copy()
         
         cycl_shift = cycl.copy()
-        cycl_shift.lon = np.abs(cycl_shift.lon+7.5)
-        cycl_lon_eu = cycl_shift.loc[cycl_shift.lon == min(cycl_shift.lon)]
+#         cycl_shift.lon = np.abs(cycl_shift.lon+7.5)
+        cycl_shift["lon_dist"] = np.abs(cycl_shift.lon - (-7.5))
+        cycl_lon_eu = cycl_shift.loc[cycl_shift.lon_dist == cycl_shift.lon_dist.min()]
         if(len(cycl_lon_eu.index)>1) :
             date_storm = datetime.datetime(year=int(cycl_lon_eu.year.iloc[0]),
                                month=int(cycl_lon_eu.month.iloc[0]),
@@ -872,6 +873,92 @@ def footprint_nc(tracks_df, track_df_info, path_data, data_name, variable_name, 
             dataset.to_netcdf(path_save+stormi+'_'+gather+'_r'+str(r)+'.nc')
     return (dataset)
 
+def radius_intensity(value, variable) : 
+    if variable == "min_slp" : 
+        if value <=980 : 
+            r=1300
+        elif value <= 1000 : 
+            r=1100
+        else : 
+            r=900
+    return r
+
+def footprint_nc_varying_radius(tracks_df, track_df_info, path_data, data_name, variable_name, aggregated,
+                  gather, save = True, path_save=PATH_FOOTPRINTS, is_mask=None, mask=None):
+    """
+    INPUT 
+        aggregated : 'ym', 'y' information about the way variable to extract are aggregated in files
+        gather : The method of gathering the timesteps (mean, max, median, .... )
+        r : Radius of influence around the minimum of pressure
+    OUTPUT 
+        Create the footprint over a given variable and save it to a shape file and netcdf 
+    """
+    storm_ids = np.unique(tracks_df.storm_id)
+    for stormi in storm_ids :
+        df_track_loop = tracks_df[tracks_df.storm_id == stormi].reset_index(drop=True)
+        df_info_track_loop = track_df_info[track_df_info.storm_id == stormi]
+        ## Extract only the needed years
+        data_nc = extract_subset(path_data, data_name, df_track_loop, aggregated)
+        data_nc = data_nc[variable_name]
+        
+        ## Mask over a given domain 
+        if not is_mask : 
+            data_nc_masked = data_nc.copy()
+        else : 
+            ## Mask
+            diff_with_Nan_copy = data_nc.copy()
+            diff_with_Nan_copy.rio.set_spatial_dims(x_dim="longitude", y_dim="latitude", inplace=True)
+            diff_with_Nan_copy.rio.write_crs("epsg:4326", inplace=True)
+            data_nc_masked = diff_with_Nan_copy.rio.clip(mask.geometry.values, mask.crs)
+        
+        ## Mask around the track 
+        r = radius_intensity(df_info_track_loop.min_slp.iloc[0]/100, "min_slp")
+        data_nc_masked_track = mask_around_track(data_nc_masked, df_track_loop, r) ##Change the radius HERE
+        
+        ## Compute the needed gathering of timesteps 
+        if gather == 'max' : 
+            data_nc_masked_track_gather = data_nc_masked_track.max('time')
+        elif gather == 'mean' :
+            data_nc_masked_track_gather = data_nc_masked_track.mean('time')
+        elif gather == 'median' :
+            data_nc_masked_track_gather = data_nc_masked_track.median('time')
+        else : 
+            return ('gather not valid')
+         
+        ## Add a time dimension corresponding to the landing date 
+        data_nc_masked_track_gather = data_nc_masked_track_gather.expand_dims(time=df_info_track_loop.storm_landing_date)
+        
+        ## Convert to Dataset and Add attributes        
+        new_name = f"{gather}_{variable_name}"
+#         dataset = data_nc_masked_track_gather.to_dataset(name='max_wind_gust')
+        dataset = data_nc_masked_track_gather.to_dataset(name=new_name)
+        #dataset.attrs['ssi']                       = str(df_info_track_loop['SSI_FRA'].iloc[0])
+        dataset.attrs['ssi_spatial_extend']        = 'FRA'
+        dataset.attrs['mean_gust_speed25']         = float(data_nc_masked_track_gather.mean())
+        dataset.attrs['mean_gust_speed25_unit']    = 'm/s'
+        dataset.attrs['max_gust_speed']            = float(data_nc_masked_track_gather.max())
+        dataset.attrs['max_gust_speed_unit']       = 'm/s'
+        dataset.attrs['comment']                   = 'um-version = Euro4 downscaler'
+        dataset.attrs['data_type']                 = 'grid'
+        dataset.attrs['creator_email']             = 'laura.hasbini@lsce.ipsl.fr'
+        dataset.attrs['product_version']           = '1.0'
+        dataset.attrs['geospatial_lat_min']        = float(data_nc_masked_track_gather.latitude.min())
+        dataset.attrs['geospatial_lat_resolution'] = np.abs(float(data_nc_masked_track_gather.latitude[1])-float(data_nc_masked_track_gather.latitude[0]))
+        dataset.attrs['geospatial_lat_max']        = float(data_nc_masked_track_gather.latitude.max())
+        dataset.attrs['geospatial_lon_min']        = float(data_nc_masked_track_gather.longitude.min())
+        dataset.attrs['geospatial_lon_resolution'] = np.abs(float(data_nc_masked_track_gather.longitude[1])-float(data_nc_masked_track_gather.longitude[0]))
+        dataset.attrs['geospatial_lon_max']        = float(data_nc_masked_track_gather.longitude.max())
+        dataset.attrs['time_coverage_start']       = str(track_df_info['storm_landing_date'])
+        dataset.attrs['geospatial_lat_units']      = 'degrees_north'
+        dataset.attrs['geospatial_lon_units']      = 'degrees_east'
+        dataset.attrs['keywords']                  = 'wind storm footprints, storm tracks'
+        dataset.attrs['storm_name']                = stormi
+        
+        ## Save netcdf
+        if save : 
+            dataset.to_netcdf(path_save+stormi+'_'+gather+'_r'+str(r)+'.nc')
+    return (dataset)
+
 #### SSI from footprint
 def SSI_from_footprint(df_info_tracks, new_col_name,
                        path_footprint = PATH_FOOTPRINTS, variable_name='max_wind_gust', r=1300, 
@@ -889,6 +976,9 @@ def SSI_from_footprint(df_info_tracks, new_col_name,
     
         if 'expver' in ds.coords :
             ds = ds.sel(expver=1)
+        
+        if 'time' in ds.coords :
+            ds = ds.isel(times=1)
         
         if is_mask : 
             # Filter with the mask 

@@ -5,6 +5,9 @@ import datetime
 import rioxarray 
 import pytz
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
+
 from rechunker import rechunk
 from rasterio import features
 from affine import Affine
@@ -26,22 +29,62 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from paths import *
 
+## Dict of columns types
+DTYPE_SINCLIM = {'cod_sin': str, 
+                 "cod_pol" : str, 
+                 "cod_cie" : str, 
+                 "cod_ent" : str, 
+                 "cod_res" : str, 
+                 "lib_res" : str, 
+                 "lib_eta" : str, 
+                 "lib_lob" : str, 
+                 "lib_lob2" : str, 
+                 "lib_per" : str, 
+                 "num_chg_brut" : float, 
+                 "cod_csd" : str, 
+                 "cod_reg" : str, 
+                 "cod_bil" : str, 
+                 "cod_nat" : str, 
+                 "cod_cbo" : str, 
+                 "cod_iso" : str, 
+                 "lib_geo" : str, 
+                 "num_lat" : float, 
+                 "num_lon" : float, 
+                 "cod_ins" : str, 
+                 "cod_hex" : str, 
+                 "cod_bat" : str, 
+                 "cod_bnb" : str, 
+                 "lib_bat" : str, 
+                 "lib_etg" : str, 
+                 "lib_occ" : str, 
+                 "lib_log" : str, 
+                 "lib_naf" : str, 
+                 "cod_risque_ino" : str, 
+                 "cod_risque_rga" : str, 
+                 "lib_ver" : str}
+
 ## Preprocess the claims to focus on MRH, type_claim... 
-def claims_preprocess(sinclim,type_claim, lob=False) : 
+def claims_preprocess(sinclim, type_claim, lob=False) : 
+    """
+    type_claim : Should be a list 
+    """
     # Remove claims not linked to the actual hazard
     sinclim            = sinclim.loc[sinclim.lib_eta != 'sans_suite']
     # Remove negative damage and serious damage 
     sinclim            = sinclim.loc[sinclim.num_chg_brut > 0]
     sinclim            = sinclim.loc[sinclim.num_chg_brut < 150000]
     #Filter over the peril of interest
-    sinclim            = sinclim[sinclim.lib_per == type_claim]    
+    sinclim            = sinclim[sinclim.lib_per.isin(type_claim)] 
     #Filter over France
     sinclim            = sinclim[sinclim.num_lat > 30]
     #Filter of GIARD entity
     sinclim            = sinclim.loc[sinclim.cod_ent=='GIARD']
+#     sinclim            = sinclim.loc[sinclim.lib_lob.isin(["mri", "mrh", "mrc"])]
     #Clean the date notation
     sinclim['dat_sin'] = pd.to_datetime(sinclim['dat_sin'])
     sinclim            = sinclim[sinclim.dat_sin.dt.month.isin([1, 2, 3, 4, 9, 10, 11, 12])]
+    #Convert the cod_sin to string 
+    sinclim['cod_sin'] = sinclim['cod_sin'].astype(str).str.strip()
     #Filter over a given lob, if required 
     if lob : 
         sinclim        = sinclim.loc[sinclim.lib_lob==lob]
@@ -207,6 +250,34 @@ def import_wgust_footprint(sinclim_storm, r=1300, path_footprint_wgust=PATH_FOOT
     combined_dataset_storm = xr.concat(datasets_storm, dim='storm_id')    
     return combined_dataset_storm
 
+def import_wgust_footprint_varying_radius(sinclim_storm, path_footprint_wgust=PATH_FOOTPRINTS_VARYING_RADIUS) : 
+    # Initialize an empty list to store the datasets for each storm
+    datasets = []
+    datasets_storm = []
+    
+    # # Loop through each storm in the stormi_impact list
+    for stormi in np.unique(sinclim_storm.storm_id):
+        # Condition of the landing date is earlier than 2010 : 
+        date_stormi_loop = datetime.datetime.strptime(stormi[:19], "%Y-%m-%d %H:%M:%S")
+        
+        stormi_path = os.path.join(path_footprint_wgust, stormi+"_max_r*" )
+
+        # Open all NetCDF files in the 'stormi_path' folder that match the pattern '*_max.nc'
+        ds = xr.open_mfdataset(stormi_path,
+                               engine="netcdf4").drop_vars('time', errors='ignore')
+
+        # Append the opened dataset to the list
+        datasets.append(ds)
+
+        #Remove time dimension and change it to storm 
+        ds = ds.drop_vars('time', errors='ignore')  
+        ds = ds.expand_dims({'storm_id': [stormi]})
+        datasets_storm.append(ds)
+
+    # If you want to merge all the datasets into one, use xr.concat or xr.combine_by_coords
+    combined_dataset_storm = xr.concat(datasets_storm, dim='storm_id')    
+    return combined_dataset_storm
+
 def add_wgust_new(sinclim_pd, combined_dataset_storm) : 
     sinclim_pd_dask = dd.from_pandas(sinclim_pd, npartitions=npartitions)
     def get_wgust(row):
@@ -221,6 +292,47 @@ def add_wgust_new(sinclim_pd, combined_dataset_storm) :
             return np.nan
     sinclim_pd_dask['wgust_max'] = sinclim_pd_dask.map_partitions(lambda df: df.apply(get_wgust, axis=1))
     return sinclim_pd_dask
+
+
+def get_wgust(row, combined_dataset_storm):
+    """Extract max_wind_gust for a given storm and location."""
+    try:
+        return float(
+            combined_dataset_storm.max_wind_gust
+            .sel(storm_id=row["storm_id"])
+            .sel(latitude=row["num_lat"], longitude=row["num_lon"], method="nearest")
+            .values
+        )
+    except (KeyError, ValueError, AttributeError):
+        return np.nan
+
+def add_wgust_new_parallel(sinclim_pd, combined_dataset_storm, max_workers=None, show_progress=True):
+    """
+    Adds a 'wgust_max' column to sinclim_pd by extracting max_wind_gust from combined_dataset_storm
+    for each storm_id and nearest (lat, lon) point, in parallel.
+    """
+    
+    rows = sinclim_pd.to_dict(orient="records")
+    results = [None] * len(rows)
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(get_wgust, row, combined_dataset_storm): i
+            for i, row in enumerate(rows)
+        }
+
+        iterator = tqdm(as_completed(futures), total=len(futures), desc="Computing wgust_max") if show_progress else as_completed(futures)
+
+        for future in iterator:
+            i = futures[future]
+            try:
+                results[i] = future.result()
+            except Exception:
+                results[i] = np.nan
+    
+    sinclim_pd = sinclim_pd.copy()
+    sinclim_pd["wgust_max"] = results
+    return sinclim_pd
 
 ##### Postprocessing to have feasible linking 
 def gather_claims_storm(sinclim_pd, df_storm, df_storm_info, nb_min_claims = 10) : 

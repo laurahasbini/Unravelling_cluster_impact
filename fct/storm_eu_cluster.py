@@ -27,13 +27,14 @@ def assign_clusters_allow_multiple(df_track_info, df_tracks, r=700, nb_hours_dif
     # Convert landing dates to datetime and create geometries
     df_track_info = df_track_info.copy()
     df_track_info['storm_landing_date'] = pd.to_datetime(df_track_info['storm_landing_date'])
-    gdf_tracks = gpd.GeoDataFrame(
-        df_tracks,
-        geometry=gpd.points_from_xy(df_tracks.lon, df_tracks.lat),
-        crs="EPSG:4326"
-    )
-    gdf_tracks['buffer'] = gdf_tracks.to_crs(epsg=3395).geometry.buffer(r * 1000).to_crs(epsg=4326)
-    spatial_index = gdf_tracks.sindex
+    if r is not None : 
+        gdf_tracks = gpd.GeoDataFrame(
+            df_tracks,
+            geometry=gpd.points_from_xy(df_tracks.lon, df_tracks.lat),
+            crs="EPSG:4326"
+        )
+        gdf_tracks['buffer'] = gdf_tracks.to_crs(epsg=3395).geometry.buffer(r * 1000).to_crs(epsg=4326)
+        spatial_index = gdf_tracks.sindex
 
     # Initialize clusters: each storm starts with its own unique cluster
     clusters = {storm_id: {cluster_id} for cluster_id, storm_id in enumerate(df_track_info['storm_id'])}
@@ -41,42 +42,53 @@ def assign_clusters_allow_multiple(df_track_info, df_tracks, r=700, nb_hours_dif
     for _, storm_row in df_track_info.iterrows():
         storm_id = storm_row['storm_id']
         storm_date = storm_row['storm_landing_date']
-        storm_buffer = gdf_tracks.loc[gdf_tracks['storm_id'] == storm_id, 'buffer'].values
-        union_buffer = unary_union(storm_buffer)
-        combined_union = union_buffer
         
-        #Apply an extra filter over the region
-        if is_mask : 
-            for geom in mask.geometry :
-                union_buffer = union_buffer.intersection(geom)
-                if union_buffer.is_empty:
-                    break
-                
-        if not union_buffer.is_empty:
-            # Find potential spatial matches
-            bounding_box = box(*union_buffer.bounds)
-            possible_matches_idx = list(spatial_index.query(bounding_box))
-            possible_matches = gdf_tracks.iloc[possible_matches_idx]
-            spatial_matches = set()
+        if r is not None :  
+            storm_buffer = gdf_tracks.loc[gdf_tracks['storm_id'] == storm_id, 'buffer'].values
+            union_buffer = unary_union(storm_buffer)
+            combined_union = union_buffer
 
-            # Check for intersection with each buffer and aggregate intersections
-            for match_row in possible_matches.itertuples():
-                match_id = match_row.storm_id
-                if match_id == storm_id:
+            #Apply an extra filter over the region
+            if is_mask : 
+                for geom in mask.geometry :
+                    union_buffer = union_buffer.intersection(geom)
+                    if union_buffer.is_empty:
+                        break
+
+            if not union_buffer.is_empty:
+                # Find potential spatial matches
+                bounding_box = box(*union_buffer.bounds)
+                possible_matches_idx = list(spatial_index.query(bounding_box))
+                possible_matches = gdf_tracks.iloc[possible_matches_idx]
+                spatial_matches = set()
+
+                # Check for intersection with each buffer and aggregate intersections
+                for match_row in possible_matches.itertuples():
+                    match_id = match_row.storm_id
+                    if match_id == storm_id:
+                        continue
+                    match_date = df_track_info.loc[df_track_info['storm_id'] == match_id, 'storm_landing_date'].values[0]
+                    if abs((match_date - storm_date).total_seconds()) <= nb_hours_diff * 3600:    
+                        match_buffer = match_row.buffer
+                        if combined_union.intersects(match_buffer):
+                            combined_union = combined_union.intersection(match_buffer)
+                            spatial_matches.add(match_id)
+
+                # Check temporal condition and link clusters
+                for match_id in spatial_matches:
+                    if match_id == storm_id:
+                        continue
+                    clusters[storm_id].update(clusters[storm_id])
+                    clusters[match_id].update(clusters[storm_id]) 
+        else : 
+            for _, storm_member in df_track_info.iterrows() : 
+                candidate_id = storm_member.storm_id
+                if candidate_id == storm_id:
                     continue
-                match_date = df_track_info.loc[df_track_info['storm_id'] == match_id, 'storm_landing_date'].values[0]
-                if abs((match_date - storm_date).total_seconds()) <= nb_hours_diff * 3600:    
-                    match_buffer = match_row.buffer
-                    if combined_union.intersects(match_buffer):
-                        combined_union = combined_union.intersection(match_buffer)
-                        spatial_matches.add(match_id)
-        
-            # Check temporal condition and link clusters
-            for match_id in spatial_matches:
-                if match_id == storm_id:
-                    continue
-                clusters[storm_id].update(clusters[storm_id])
-                clusters[match_id].update(clusters[storm_id]) 
+                candidate_date = df_track_info.loc[df_track_info['storm_id'] == candidate_id, 'storm_landing_date'].values[0]
+                if abs((candidate_date - storm_date).total_seconds()) <= nb_hours_diff * 3600:    
+                    clusters[storm_id].update(clusters[storm_id])
+                    clusters[candidate_id].update(clusters[storm_id])                 
     
     # Assign back to the DataFrame
     df_track_info.loc[:,'clust_ids'] = df_track_info['storm_id'].apply(lambda x: list(clusters[x]))
