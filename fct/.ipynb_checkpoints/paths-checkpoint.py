@@ -1,9 +1,0 @@
-# Import paths 
-PATH_CODE = "/home/users/lhasbini/programs/paper1_Unravelling_wind_impact/"
-PATH_WGUST = "/home/estimr3/bdd/ERA5/North_Atlantic_22p5N_70N_80W_50E/hourly/wgust/"
-PATH_WGUST_QUANTILE = "/home/estimr3/bdd/ERA5/North_Atlantic_22p5N_70N_80W_50E/daily/wgust_percentile/"
-PATH_TRACKS = "/home/estimr3/lhasbini/data_storm/priestley/convert_TE/NH_ALL/"
-PATH_FOOTPRINTS = "/home/estimr3/lhasbini/data_storm/priestley/footprint/NH_ALL/"
-PATH_SHP_COUNTRIES = "/home/estimr3/lhasbini/shp_files/"
-PATH_GENERALI = "/home/users/lhasbini/data_generali/"
-PATH_FIGURE = "/home/users/lhasbini/figure/"
