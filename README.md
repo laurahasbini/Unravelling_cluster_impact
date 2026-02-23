@@ -7,22 +7,13 @@ Université Paris-Saclay, Gif-sur-Yvette, France.
 
 \* corresponding authors: laura.hasbini@lsce.ipsl.fr
 
+**Publication DOI:** [10.5194/egusphere-2025-3138](https://doi.org/10.5194/egusphere-2025-3138)
+
 ## Abstract
 Winter windstorms are the most damaging natural hazard in Europe in terms of insured losses, with impacts often arising from clusters of storms rather than isolated events. In reinsurance practice, losses are aggregated over sequences of storms affecting the same region within a limited time window. Yet, attributing individual damages to specific storm events remains challenging. The distribution of costs between insurance and reinsurance companies critically depends on this attribution, making robust and transparent criteria essential for a fair allocation of losses. This study introduces a method to systematically link individual insurance claims to extra-tropical cyclones, enabling event-based attribution of damages. The method is applied to the Generali France loss portfolio to build a catalogue linking individual claims to storm events. The resulting catalogue provides a foundation for risk assessment, loss modelling, and reinsurance applications. We focus on storm clusters, defined as successive storms affecting the same region within a 96-hour period. We show that damaging storms within clusters are more intense than isolated events, with lower minimum sea-level pressure and higher vorticity. Losses within clusters are dominated by a single storm, accounting on average for about 70% of total cluster losses, while the remaining storms collectively contribute the residual losses. Overall, 85% of windstorm-related losses over the 1998-2024 period are associated with clustered events, and damaging storms occur in clusters more frequently than expected from the full population of extratropical cyclones. These results highlight the importance of explicitly accounting for storm clustering in insurance and reinsurance risk management.
 
 ---
-## Data references
-### Input data
-|       Dataset       |               Description                    |               Reference/DOI          |
-|:-------------------:|:--------------------------------------------:|:--------------------------------:|
-|TBD|TBD|[![DOI]()]()|
-
-## Output data
-|       Dataset       |              Description                    |           Repository Link        |                   DOI                   |
-|:-------------------:|:-------------------------------------------:|:--------------------------------:|:---------------------------------------:|
-|TBD|TBD|[Link]()|[![DOI]()]()|
-
-## Reproduce our experiment
+## Reproductibility
 
 ### Requirements
 
@@ -64,17 +55,15 @@ These scripts form the **core processing logic** and are typically called direct
 
 | Script | Description |
 |------:|------------|
-| `tracks_SSI_from_footprint.py` | Compute Storm Severity Index (SSI) from footprint data |
 | `tracks_cluster.py` | Perform clustering of storm tracks |
 | `tracks_cluster_impact.py` | Cluster impacts associated with storm tracks |
 | `tracks_convert_TE.py` | Convert track data to the TE (TempestExtreme) format |
 | `tracks_filter_FR.py` | Filter storm tracks over the France domain |
 | `tracks_footprints.py` | Generate storm wind footprints |
-| `tracks_footprints_u-v_levels.py` | Compute wind footprints using u/v wind components at multiple vertical levels |
 | `tracks_footprints_varying_radius.py` | Sensitivity analysis of footprints with varying spatial radius |
 | `tracks_merge.py` | Merge storm track files into unified datasets |
 
-### Claim Asssociation
+### Claim Association
 Python modules implementing the **association between insurance claims and storm events**, as well as performance evaluation and aggregation utilities.  
 These scripts are part of the **core analytical workflow** and are typically executed via pipeline scripts or imported as modules.
 
