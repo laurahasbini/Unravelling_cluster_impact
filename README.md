@@ -13,26 +13,6 @@ Université Paris-Saclay, Gif-sur-Yvette, France.
 Winter windstorms are the most damaging natural hazard in Europe in terms of insured losses, with impacts often arising from clusters of storms rather than isolated events. In reinsurance practice, losses are aggregated over sequences of storms affecting the same region within a limited time window. Yet, attributing individual damages to specific storm events remains challenging. The distribution of costs between insurance and reinsurance companies critically depends on this attribution, making robust and transparent criteria essential for a fair allocation of losses. This study introduces a method to systematically link individual insurance claims to extra-tropical cyclones, enabling event-based attribution of damages. The method is applied to the Generali France loss portfolio to build a catalogue linking individual claims to storm events. The resulting catalogue provides a foundation for risk assessment, loss modelling, and reinsurance applications. We focus on storm clusters, defined as successive storms affecting the same region within a 96-hour period. We show that damaging storms within clusters are more intense than isolated events, with lower minimum sea-level pressure and higher vorticity. Losses within clusters are dominated by a single storm, accounting on average for about 70% of total cluster losses, while the remaining storms collectively contribute the residual losses. Overall, 85% of windstorm-related losses over the 1998-2024 period are associated with clustered events, and damaging storms occur in clusters more frequently than expected from the full population of extratropical cyclones. These results highlight the importance of explicitly accounting for storm clustering in insurance and reinsurance risk management.
 
 ---
-## Reproductibility
-
-### Requirements
-
-| Requirement | Notes |
-|------------|-------|
-| Python | Version 3.11 |
-| Conda | Used for environment management |
-| Internet connection | Required for models and external data |
-
----
-### Core pipeline execution
-The core pipeline consists of three main steps.
-
-|Script Name | Description |
-|Fpreproces_reports.py| Pre process raw IFRC reports, formatting and text selection|
-|llm_extraction.py| Extract hazards and impacts using LLMs |
-|postprocess_results.py| Reclassify, standardize, and geocode extracted impacts|
-
-
 ## Repository content
 
 ### Bash Scripts 
